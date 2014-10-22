@@ -1,0 +1,96 @@
+---
+title: "Motion Prediction for Machine Learning Class"
+author: "Mike Ratliff"
+date: "October 20, 2014"
+output: html_document
+---
+## Dependencies
+```{r}
+library(caret)
+library(randomForest)
+```
+
+## Loading Data
+
+The data seems to have a recurring entry of "#DIV/0!", so best guess is to assume those are "NA" values for now.
+
+```{r, cache = TRUE}
+trainURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testURL <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+download.file(trainURL, destfile = "train.csv", method = "curl")
+download.file(testURL, destfile = "test.csv", method = "curl")
+
+train <- read.csv("trainingData.csv", header=TRUE, na.string = c("#DIV/0!", "", "NA", "NULL"))
+test <- read.csv("testingData.csv", header=TRUE, na.strings =  c("#DIV/0!", "", "NA", "NULL"))
+```
+
+## Filtering Data
+
+The dataset contains some meta data that will not be helpful in prediction...so let's get rid of that. It is all in the first 7 columns....
+
+```{r}
+train <- train[,-(1:7)]
+test <- test[,-(1:7)]
+```
+
+There are columns that are nothing by NA's, so lets get rid of those as well sense they will not add to the model
+
+```{r}
+train <- train[colnames(train[colSums(is.na(train)) == 0])]
+test <- test[colnames(test[colSums(is.na(test)) == 0])]
+````
+
+## Splitting data for cross validation
+
+Set aside a dataset for cross validation purposes.
+```{r}
+inTrain <- createDataPartition(y=train$classe, p=0.7, list=FALSE)
+train <- train[inTrain,]
+cross <- train[-inTrain,]
+````
+
+## Model Training
+
+Let's try a model. After exploring the data it seems that we have a large number of predictors to deal with. A good guess for this purpose is Random Forests
+
+```{r}
+model <- randomForest(classe ~., data = train)
+model
+```
+```{r}
+confusionMatrix(cross$classe, predict(model, newdata = cross))
+```
+
+Pretty good. But let's see if we can tell anything about our model and its efficiency 
+
+```{r}
+plot(model, main = "Model Error Rates")
+````
+
+This seems to indicate that the error rate rapidly decreases until we hit about 100 trees then things begin to level off. This indicates that we could be more efficient and not use the default 500 trees and possibly get similar error rates with a simpler model....let's see if that is true.
+
+A second try at the model follows.
+```{r}
+model_100 <- randomForest(classe ~., data = train, ntree= 100)
+model_100
+````
+
+```{r}
+confusionMatrix(cross$classe, predict(model_100, newdata = cross))
+```
+
+```{r}
+plot(model_100, main = "Model Error Rates")
+````
+
+## Conclusion
+
+We have lost a very small amount of accuracy on the trainig set but the cross validation results are the same. So we will go with the simple, faster model.
+
+## Answers
+```{r}
+answers <- predict(model_100, newdata=test)
+answers
+```
+
